@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Convert an .xlsx file (all sheets) to a readable tab-separated .txt file."""
+
+import argparse
+import datetime
+import sys
+from pathlib import Path
+
+try:
+    import openpyxl
+except ImportError:
+    sys.exit("Error: openpyxl is required. Install it with: pip install openpyxl")
+
+
+def format_cell(value):
+    """Render a cell value as a clean string."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime.datetime):
+        return value.isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, datetime.time):
+        return value.isoformat()
+    if isinstance(value, float) and value == int(value):
+        return str(int(value))
+    s = str(value)
+    # Flatten in-cell newlines to literal \n so each row stays on one line
+    s = s.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n")
+    return s
+
+
+def convert(xlsx_path, output_path=None):
+    """Convert xlsx_path to a tab-separated text file."""
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+
+    if output_path is None:
+        out = sys.stdout
+    else:
+        out = open(output_path, "w", encoding="utf-8")
+
+    try:
+        for i, name in enumerate(wb.sheetnames):
+            if i > 0:
+                out.write("\n")
+            out.write(f"=== Sheet: {name} ===\n")
+            ws = wb[name]
+            for row in ws.iter_rows(values_only=True):
+                out.write("\t".join(format_cell(v) for v in row) + "\n")
+    finally:
+        if output_path is not None:
+            out.close()
+        wb.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Convert .xlsx files to readable tab-separated .txt files."
+    )
+    parser.add_argument("files", nargs="+", help=".xlsx files to convert")
+    parser.add_argument(
+        "-o", "--output",
+        help="Output file (only valid with a single input file; default: <input>.txt)",
+    )
+    parser.add_argument(
+        "--stdout", action="store_true",
+        help="Write to stdout instead of a file",
+    )
+    args = parser.parse_args()
+
+    if args.output and len(args.files) > 1:
+        sys.exit("Error: -o/--output can only be used with a single input file.")
+
+    for xlsx_path in args.files:
+        p = Path(xlsx_path)
+        if not p.exists():
+            print(f"Error: {xlsx_path} not found", file=sys.stderr)
+            continue
+
+        if args.stdout:
+            convert(p, output_path=None)
+        else:
+            out_path = Path(args.output) if args.output else p.with_suffix(".txt")
+            convert(p, output_path=out_path)
+            print(f"{p} -> {out_path}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
