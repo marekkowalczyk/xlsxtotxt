@@ -4,6 +4,7 @@
 import argparse
 import datetime
 import sys
+import warnings
 from pathlib import Path
 
 try:
@@ -32,7 +33,9 @@ def format_cell(value):
 
 def convert(xlsx_path, output_path=None):
     """Convert xlsx_path to a tab-separated text file."""
-    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
 
     if output_path is None:
         out = sys.stdout
